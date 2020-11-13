@@ -1,8 +1,8 @@
 package = 'pg'
 version = 'scm-1'
 source  = {
-    url    = 'git://github.com/tarantool/pg.git',
-    branch = 'master',
+    url    = 'git://github.com/get-net/pg.git',
+    branch = 'feature/timeout',
 }
 description = {
     summary  = "PostgreSQL connector for Tarantool",

@@ -14,7 +14,7 @@ local function conn_create(pg_conn)
     local conn = setmetatable({
         usable = true,
         conn = pg_conn,
-        queue = queue,
+        queue = queue
     }, conn_mt)
 
     return conn
@@ -22,15 +22,16 @@ end
 
 -- get connection from pool
 local function conn_get(pool)
-    local pg_conn = pool.queue:get()
+    local pg_conn = pool.queue:get(pool.timeout)
     local status
+
     if pg_conn == nil then
         status, pg_conn = driver.connect(pool.conn_string)
         if status < 0 then
             return error(pg_conn)
         end
     end
-    local conn = conn_create(pg_conn, pool)
+    local conn = conn_create(pg_conn, pool.timeout)
     conn.__gc_hook = ffi.gc(ffi.new('void *'),
         function(self)
             pg_conn:close()
@@ -98,7 +99,7 @@ conn_mt = {
             if not self.usable then
                 return get_error(self.raise.pool, 'Connection is not usable')
             end
-            if not self.queue:get() then
+            if not self.queue:get(self.timeout) then
                 self.queue:put(false)
                 return get_error(self.raise.pool, 'Connection is broken')
             end
@@ -161,12 +162,13 @@ local function pool_create(opts)
 
     return setmetatable({
         -- connection variables
-        host        = opts.host,
-        port        = opts.port,
-        user        = opts.user,
-        pass        = opts.pass,
-        db          = opts.db,
-        size        = opts.size,
+        host         = opts.host,
+        port         = opts.port,
+        user         = opts.user,
+        pass         = opts.pass,
+        db           = opts.db,
+        size         = opts.size,
+        timeout      = opts.timeout,
         conn_string  = conn_string,
 
         -- private variables
@@ -202,9 +204,18 @@ end
 
 -- Free binded connection
 local function pool_put(self, conn)
+    if self.queue:count() >= self.size then
+        if conn.usable then
+            conn:close()
+        end
+        return
+    end
+
     if conn.usable then
         self.queue:put(conn_put(conn))
+        return
     end
+    self.queue:put(nil)
 end
 
 pool_mt = {
